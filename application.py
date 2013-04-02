@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
-from flask import Flask, flash, request, render_template, session
+from functools import wraps
+from flask import Flask, flash, request, render_template, session, Response
 import logging
 import datetime
 from logging.handlers import RotatingFileHandler
@@ -35,9 +36,35 @@ handler = RotatingFileHandler(
 app.logger.addHandler(handler)
 
 
+def check_auth(username, password):
+    """This function is called to check if a username /
+    password combination is valid.
+    """
+    return username == 'admin' and password == 'secret'
+
+
+def authenticate():
+    """Sends a 401 response that enables basic auth"""
+    return Response(
+    'Could not verify your access level for that URL.\n'
+    'You have to login with proper credentials', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
+
 # VIEWS
 # ############################################################### #
 @app.route('/', methods=['GET', 'POST'])
+@login_required
 def hello_world():
     form = SMSForm(request.form)
     if request.method == 'POST' and form.validate():
